@@ -130,7 +130,7 @@ func flushTickCache2DB() error {
 	}
 	db := common.MustGetDB("kline")
 
-	sql := "insert into ticker (coinType, high, low, open, close, createTime, updateTime, timeScale, origin, originPrice, volume) values "
+	sql := "insert into tick_cache (coinType, high, low, open, close, createTime, updateTime, timeScale, origin, originPrice, volume) values "
 	values := []string{}
 	for _, item := range klineCache {
 		values = append(values, fmt.Sprintf("('%s', '%s', '%s', '%s', '%s', %v, %v, '%s', %d, '%s', '%s')",
@@ -151,7 +151,7 @@ func flushTickCache2DB() error {
 func deleteOldTick() error {
 	// 删除6小时前的数据
 	db := common.MustGetDB("kline")
-	sql := fmt.Sprintf("delete from ticker where createTime < %v", time.Now().Unix()-60*10)
+	sql := fmt.Sprintf("delete from tick_cache where createTime < %v", time.Now().Unix()-60*10)
 	err := db.Exec(sql).Error
 	if err != nil {
 		logger.Error("DbWorker_saveTicker2DB", sql, "saveTick sql err")
