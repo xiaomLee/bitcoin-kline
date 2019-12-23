@@ -50,7 +50,7 @@ func InitProviderWorker() {
 		providers = append(providers, constant.ProviderMock)
 		providers = append(providers, constant.ProviderSina)
 	} else {
-		providers = append(providers, constant.ProviderMock)
+		//providers = append(providers, constant.ProviderMock)
 		providers = append(providers, constant.ProviderZB)
 		providers = append(providers, constant.ProviderHuoBi)
 		providers = append(providers, constant.ProviderOkex)

@@ -21,7 +21,7 @@ import (
 func TestProvider(t *testing.T) {
 	coinType1 := "RU/CNY"
 	//coinType2 := "RU/USDT"
-	p := newProvider("sina")
+	p := newProvider("mock")
 	p.StartCollect()
 	c1 := p.ReadChan(coinType1)
 	//c2 := p.ReadChan(coinType2)

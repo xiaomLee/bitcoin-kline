@@ -24,10 +24,12 @@ var (
 	klineCache  []model.Kline
 )
 
-func NewDbWorker() *DbWorker {
+func InitDbWorker() {
 	klineDbChan = make(chan model.Kline, DefaultDbChanSize)
 	klineCache = make([]model.Kline, 0)
+}
 
+func NewDbWorker() *DbWorker {
 	return &DbWorker{
 		breakMainLogic: make(chan bool),
 		exited:         make(chan bool),

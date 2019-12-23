@@ -52,6 +52,7 @@ func (w *KlineWorker) workLoop(params ...interface{}) {
 	for {
 		select {
 		case kline := <-fixedDataChan[coinType]:
+			//fmt.Printf("kline:%+v \n", kline)
 			if kline == nil {
 				break
 			}

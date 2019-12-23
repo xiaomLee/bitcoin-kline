@@ -21,16 +21,19 @@ func NewHub() *Hub {
 }
 
 func (h *Hub) Start() error {
+	worker.InitProviderWorker()
 	if err := h.providerW.Start(); err != nil {
 		return err
 	}
-	if err := h.klineW.Start(); err != nil {
-		return err
-	}
+	worker.InitMqWorker()
 	if err := h.mqW.Start(); err != nil {
 		return err
 	}
+	worker.InitDbWorker()
 	if err := h.dbW.Start(); err != nil {
+		return err
+	}
+	if err := h.klineW.Start(); err != nil {
 		return err
 	}
 

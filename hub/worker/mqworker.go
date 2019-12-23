@@ -32,10 +32,12 @@ var (
 	appId       string
 )
 
-func NewMqWorker() *MqWorker {
+func InitMqWorker() {
 	appId = config.GetConfig("rabbit", "appId")
 	klineMqChan = make(chan model.Kline, DefaultMqChanSize)
+}
 
+func NewMqWorker() *MqWorker {
 	return &MqWorker{
 		currentKline:   make(map[string]*model.Kline),
 		breakMainLogic: make(chan bool),
@@ -43,9 +45,8 @@ func NewMqWorker() *MqWorker {
 }
 
 func (w *MqWorker) Start() error {
-
+	w.Add(1)
 	go func() {
-		w.Add(1)
 		defer w.Done()
 		w.pushLoop()
 	}()
