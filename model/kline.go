@@ -18,11 +18,6 @@ type Kline struct {
 	Origin      int    `gorm:"column:origin" json:"origin"`                   // 是否原始数据：1:是，0：否
 	OriginPrice string `gorm:"column:originPrice" json:"-"`                   // 原始报价 市场价
 	Volume      string `gorm:"column:volume" json:"volume"`                   // 24小时成交量
-
-	// 标识本地风控数据
-	RiskType  int `gorm:"column:-" json:"-"` // 风控类型 0=未风控 1=开始调整 2=恢复调整
-	TotalStep int `gorm:"column:-" json:"-"` // 总步数 = 调整时间 或 恢复时间
-	Step      int `gorm:"column:-" json:"-"` // 当前步数
 }
 
 func (k *Kline) TableName() string {
@@ -43,9 +38,6 @@ func (k *Kline) Copy() Kline {
 		Origin:      k.Origin,
 		OriginPrice: k.OriginPrice,
 		Volume:      k.Volume,
-		RiskType:    k.RiskType,
-		TotalStep:   k.TotalStep,
-		Step:        k.Step,
 	}
 }
 
@@ -57,7 +49,7 @@ func GetDbKline(coinType string, createTime int64, timeScale string) *Kline {
 	createTime = createTime - createTime%int64(val)
 
 	var item Kline
-	db := common.MustGetDB("futures")
+	db := common.MustGetDB("kline")
 	if err := db.Where("coinType=? and TimeScale=? and createTime=?", coinType, timeScale, createTime).Find(&item).Error; err != nil {
 		return nil
 	}
@@ -69,7 +61,7 @@ func GetDbKline(coinType string, createTime int64, timeScale string) *Kline {
 func GetKlineHistoryClose(coinType string, timeScale string, endTime int64, size int) []float64 {
 	ret := make([]float64, 0)
 
-	db := common.MustGetDB("futures")
+	db := common.MustGetDB("kline")
 	var list []struct {
 		Price float64 `gorm:"column:price"`
 	}

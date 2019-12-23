@@ -80,7 +80,7 @@ func (w *MqWorker) pushLoop() {
 			w.currentKline[kline.CoinType] = &kline
 
 			// 发送msg
-			event := constant.MqEventTypeKline + kline.CoinType
+			event := constant.MqEventTypeTick + kline.CoinType
 			msgBody := struct {
 				EventType string       `json:"eventType"`
 				Data      *model.Kline `json:"data"`

@@ -2,7 +2,6 @@ package hub
 
 import (
 	"bitcoin-kline/hub/worker"
-	"sync"
 )
 
 type Hub struct {
@@ -10,7 +9,6 @@ type Hub struct {
 	klineW    *worker.KlineWorker
 	mqW       *worker.MqWorker
 	dbW       *worker.DbWorker
-	sync.WaitGroup
 }
 
 func NewHub() *Hub {

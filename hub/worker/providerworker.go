@@ -18,7 +18,6 @@ import (
 	"bitcoin-kline/model"
 	"fmt"
 	"math"
-	"math/rand"
 	"sort"
 	"strconv"
 	"sync"
@@ -49,13 +48,11 @@ func InitProviderWorker() {
 	providers = make([]string, 0)
 	if config.CURMODE == config.ENV_DEV {
 		providers = append(providers, constant.ProviderMock)
-		providers = append(providers, constant.ProviderLocal)
 		providers = append(providers, constant.ProviderSina)
 	} else {
-		providers = append(providers, constant.ProviderLocal) // 风控策略器
+		providers = append(providers, constant.ProviderMock)
 		providers = append(providers, constant.ProviderZB)
 		providers = append(providers, constant.ProviderHuoBi)
-		//providers = append(providers, constant.ProviderBlockcc) // 数据差异较大，暂不使用
 		providers = append(providers, constant.ProviderOkex)
 		providers = append(providers, constant.ProviderBitz)
 		providers = append(providers, constant.ProviderGateio)
@@ -63,7 +60,6 @@ func InitProviderWorker() {
 		providers = append(providers, constant.ProviderBitmax)
 		providers = append(providers, constant.ProviderBitmax)
 		//providers = append(providers, constant.ProviderSina) // 橡胶期货数据
-		//providers = append(providers, constant.ProviderOtcbtc)	// 数据差异较大 暂不使用
 	}
 }
 
@@ -186,24 +182,12 @@ func (w *ProviderWorker) getCurrentKline(coinType string) *model.Kline {
 }
 
 func (w *ProviderWorker) fixData(coinType string, items []*model.Kline) *model.Kline {
-
-	// 过滤本地风控数据
-	var localKline *model.Kline
-	marketKlines := make([]*model.Kline, 0)
-	for _, item := range items {
-		if item.Origin == constant.ProviderLocalOriginType {
-			localKline = item
-			continue
-		}
-		marketKlines = append(marketKlines, item)
-	}
-
-	if len(marketKlines) == 0 {
+	if len(items) == 0 {
 		return nil
 	}
 
 	// 过滤异常值
-	afterFilter := filterOutliers(marketKlines)
+	afterFilter := filterOutliers(items)
 	prices := make([]map[string]string, 0)
 	priceSum := "0"
 	priceVol := "0"
@@ -217,41 +201,20 @@ func (w *ProviderWorker) fixData(coinType string, items []*model.Kline) *model.K
 	marketPrice, _ := common.BcDiv(priceSum, strconv.Itoa(len(afterFilter)), 4)
 	vol, _ := common.BcDiv(priceVol, strconv.Itoa(len(afterFilter)), 4)
 
-	//fmt.Printf("coinType:%s, prices:%v, len:%d, avgPrice:%s avgVol:%s \n", coinType, prices, len(prices), marketPrice, vol)
-
-	// 执行风控逻辑
-	price := marketPrice
-	riskType := 0
-	totalStep := 0
-	step := 0
-	currentKline := w.getCurrentKline(coinType)
-	if localKline != nil && currentKline != nil {
-		price = getControlPrice(marketPrice, currentKline.Close, localKline)
-		riskType = localKline.RiskType
-		totalStep = localKline.TotalStep
-		step = localKline.Step
-		logger.Error("ProviderWorker_riskControl", nil,
-			fmt.Sprintf("coinType: %s riskType:%d totalStep:%d step:%d markPrice:%s currentPrice:%s marketPrice:%s randPrice:%s",
-				coinType, localKline.RiskType, localKline.TotalStep, localKline.Step, localKline.Close, currentKline.Close, marketPrice, price))
-	}
-
 	// 构造kline
 	now := time.Now().Unix()
 	kline := &model.Kline{
 		CoinType:    coinType,
-		High:        price,
-		Low:         price,
-		Open:        price,
-		Close:       price,
+		High:        marketPrice,
+		Low:         marketPrice,
+		Open:        marketPrice,
+		Close:       marketPrice,
 		CreateTime:  now,
 		UpdateTime:  now,
 		TimeScale:   "1s",
 		Origin:      1,
 		OriginPrice: marketPrice,
 		Volume:      vol,
-		RiskType:    riskType,
-		TotalStep:   totalStep,
-		Step:        step,
 	}
 
 	w.setCurrentKline(kline)
@@ -297,55 +260,4 @@ func filterOutliers(items []*model.Kline) []*model.Kline {
 	}
 
 	return result
-}
-
-// 获取风控价格, kline.Close=风控目标价
-func getControlPrice(marketPrice, currentPrice string, kline *model.Kline) string {
-	if kline.RiskType == 0 {
-		return marketPrice
-	}
-
-	// 开始调整 currentPrice -> kline.Close
-	if kline.RiskType == 1 {
-		leftStep := kline.TotalStep - kline.Step
-		if leftStep == 0 {
-			return kline.Close
-		}
-		ret, _ := common.BcCmp(kline.Close, currentPrice)
-		if ret == 0 {
-			return currentPrice
-		}
-		sub, _ := common.BcSub(kline.Close, currentPrice, 4)
-		if ret < 0 {
-			sub, _ = common.BcSub(currentPrice, kline.Close, 4)
-		}
-		baseNumStr, _ := common.BcMul(sub, "10000", 0)
-		base, _ := strconv.Atoi(baseNumStr)
-		randNumStr := strconv.FormatFloat(float64(rand.Intn(base)*ret)*rand.Float64()*2/float64(10000*leftStep), 'f', 4, 64)
-		randPrice, _ := common.BcAdd(currentPrice, randNumStr, 4)
-		return randPrice
-	}
-
-	// 开始恢复 currentPrice -> marketPrice
-	if kline.RiskType == 2 {
-		leftStep := kline.TotalStep - kline.Step
-		if kline.TotalStep-kline.Step == 0 {
-			return marketPrice
-		}
-		ret, _ := common.BcCmp(marketPrice, currentPrice)
-		if ret == 0 {
-			return currentPrice
-		}
-		sub, _ := common.BcSub(marketPrice, currentPrice, 4)
-		if ret < 0 {
-			sub, _ = common.BcSub(currentPrice, marketPrice, 4)
-		}
-		baseNumStr, _ := common.BcMul(sub, "10000", 0)
-		base, _ := strconv.Atoi(baseNumStr)
-		randNumStr := strconv.FormatFloat(float64(rand.Intn(base)*ret)*rand.Float64()*2/float64(10000*leftStep), 'f', 4, 64)
-		randPrice, _ := common.BcAdd(currentPrice, randNumStr, 4)
-		return randPrice
-	}
-
-	return marketPrice
 }

@@ -55,8 +55,8 @@ func (w *DbWorker) workLoop() {
 			kline.Volume = strconv.Itoa(rand.Intn(100))
 
 			// 保存秒级数据
-			if err := saveTicker(kline); err != nil {
-				logger.Error("DbWorker_saveTicker", err, "DbWorker saveTicker err")
+			if err := saveTick(kline); err != nil {
+				logger.Error("DbWorker_saveTicker", err, "DbWorker saveTick err")
 			}
 
 			// 构造分时数据并保存
@@ -73,14 +73,14 @@ func (w *DbWorker) workLoop() {
 			}
 
 		case <-timer.C:
-			if err := deleteOldTicker(); err != nil {
-				logger.Error("DbWorker_deleteOldTicker", err, "DbWorker deleteOldTicker err")
+			if err := deleteOldTick(); err != nil {
+				logger.Error("DbWorker_deleteOldTicker", err, "DbWorker deleteOldTick err")
 			}
 			// todo
 			timer.Reset(time.Hour * 6)
 
 		case <-w.breakMainLogic:
-			if err := flushTickerCache2DB(); err != nil {
+			if err := flushTickCache2DB(); err != nil {
 				logger.Error("DbWorker_flushTicker", err, "DbWorker flushTicker to db err")
 			}
 			goto EXIT
@@ -92,7 +92,7 @@ EXIT:
 
 // 批量将kline数据写入或更新到数据库
 func saveKline2DB(items []model.Kline) error {
-	db := common.MustGetDB("futures")
+	db := common.MustGetDB("kline")
 
 	sql := "insert into kline (coinType, high, low, open, close, createTime, updateTime, timeScale, origin, originPrice, volume) values "
 	values := []string{}
@@ -114,34 +114,33 @@ func saveKline2DB(items []model.Kline) error {
 	return err
 }
 
-func saveTicker(item model.Kline) error {
+func saveTick(item model.Kline) error {
 	klineCache = append(klineCache, item)
 	// 缓存大于50 执行插入db
 	if len(klineCache) < 60 {
 		return nil
 	}
 
-	return flushTickerCache2DB()
+	return flushTickCache2DB()
 }
 
-func flushTickerCache2DB() error {
+func flushTickCache2DB() error {
 	if len(klineCache) == 0 {
 		return nil
 	}
-	db := common.MustGetDB("futures")
+	db := common.MustGetDB("kline")
 
-	sql := "insert into ticker (coinType, high, low, open, close, createTime, updateTime, timeScale, origin, originPrice, volume, riskType, totalStep, step) values "
+	sql := "insert into ticker (coinType, high, low, open, close, createTime, updateTime, timeScale, origin, originPrice, volume) values "
 	values := []string{}
 	for _, item := range klineCache {
-		values = append(values, fmt.Sprintf("('%s', '%s', '%s', '%s', '%s', %v, %v, '%s', %d, '%s', '%s', %d, %d, %d)",
-			item.CoinType, item.High, item.Low, item.Open, item.Close, item.CreateTime, item.UpdateTime, item.TimeScale, item.Origin, item.OriginPrice, item.Volume,
-			item.RiskType, item.TotalStep, item.Step))
+		values = append(values, fmt.Sprintf("('%s', '%s', '%s', '%s', '%s', %v, %v, '%s', %d, '%s', '%s')",
+			item.CoinType, item.High, item.Low, item.Open, item.Close, item.CreateTime, item.UpdateTime, item.TimeScale, item.Origin, item.OriginPrice, item.Volume))
 	}
 	sql += strings.Join(values, ",")
 	sql += " ON DUPLICATE KEY UPDATE open=values(open), close=values(close), high=values(high), low=values(low), updateTime=values(updateTime), volume=values(volume)"
 	err := db.Exec(sql).Error
 	if err != nil {
-		logger.Error("DbWorker_saveTicker2DB", sql, "saveTicker sql err")
+		logger.Error("DbWorker_saveTicker2DB", sql, "saveTick sql err")
 		return err
 	}
 	//清空缓存
@@ -149,13 +148,13 @@ func flushTickerCache2DB() error {
 	return nil
 }
 
-func deleteOldTicker() error {
+func deleteOldTick() error {
 	// 删除6小时前的数据
-	db := common.MustGetDB("futures")
+	db := common.MustGetDB("kline")
 	sql := fmt.Sprintf("delete from ticker where createTime < %v", time.Now().Unix()-60*10)
 	err := db.Exec(sql).Error
 	if err != nil {
-		logger.Error("DbWorker_saveTicker2DB", sql, "saveTicker sql err")
+		logger.Error("DbWorker_saveTicker2DB", sql, "saveTick sql err")
 	}
 
 	return err
