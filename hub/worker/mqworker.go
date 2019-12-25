@@ -1,10 +1,10 @@
 package worker
 
 import (
+	"bitcoin-kline/common"
 	"bitcoin-kline/config"
 	"bitcoin-kline/constant"
 	"bitcoin-kline/model"
-	"fmt"
 	"sync"
 
 	json "github.com/json-iterator/go"
@@ -30,11 +30,16 @@ const DefaultMqChanSize = 1024
 var (
 	klineMqChan chan model.Kline
 	appId       string
+	exchange    string
+	routerKey   = "kline"
 )
 
 func InitMqWorker() {
+	exchange = config.GetConfig("rabbit", "exchange")
 	appId = config.GetConfig("rabbit", "appId")
 	klineMqChan = make(chan model.Kline, DefaultMqChanSize)
+	common.GetRabbitInstance().ExchangeDeclare(exchange)
+	//common.GetRabbitInstance().QueueDeclare("kline", exchange, routerKey)
 }
 
 func NewMqWorker() *MqWorker {
@@ -106,6 +111,6 @@ func pushMq(eventType string, msgBody string) {
 		Body:      msgBody,
 	}
 	body, _ := json.Marshal(message)
-	//common.GetRabbitInstance().PushTransientMessage(rabbit.ExchangeKey, "push_"+appId, body)
-	fmt.Printf("msgBody:%s \n", body)
+	common.GetRabbitInstance().PushTransientMessage(exchange, routerKey, body)
+	//fmt.Printf("msgBody:%s \n", body)
 }

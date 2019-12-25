@@ -7,6 +7,7 @@ import (
 	"bitcoin-kline/logger"
 	"bitcoin-kline/router"
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -60,6 +61,18 @@ func (s *BaseServer) Init(env svc.Environment) error {
 		return err
 	}
 	println("redis init success")
+
+	rabbitUrl := fmt.Sprintf("amqp://%s:%s@%s:%s%s",
+		config.GetConfig("rabbit", "account"),
+		config.GetConfig("rabbit", "password"),
+		config.GetConfig("rabbit", "ip"),
+		config.GetConfig("rabbit", "port"),
+		config.GetConfig("rabbit", "vhost"),
+	)
+	if err := common.InitRabbit(rabbitUrl); err != nil {
+		return err
+	}
+	println("rabbit init success")
 
 	return nil
 }

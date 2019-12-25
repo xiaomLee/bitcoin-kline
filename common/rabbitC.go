@@ -2,6 +2,8 @@ package common
 
 import (
 	"bitcoin-kline/logger"
+	"errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -9,71 +11,63 @@ import (
 )
 
 type RabbitC struct {
+	url  string
 	conn *amqp.Connection
 	ch   *amqp.Channel
 
-	asyncPushChan chan Message
+	asyncPushChan chan Message // push msg chan
+
+	exchangeKeys []string
+	queues       map[string]string // queueName: exchange:::router
+	consumers    map[string]Consumer
 
 	exit   chan bool
 	exited chan bool
 
-	url           string
-	consumeQueues []string
-
-	afterConnected     func(r *RabbitC, ch *amqp.Channel) error
-	newMessageCallBack []func(amqp.Delivery)
-
+	sync.RWMutex
 	sync.WaitGroup
 }
 
-// NewRabbitC returns a RabbitC instance
+type Consumer struct {
+	name     string
+	queue    string
+	callback func(amqp.Delivery)
+}
+
+var rabbitC *RabbitC
+
+// default rabbit instance
 // url is format like 'amqp://account:password@ip:port/vHost'
-//
-// for example: amqp://gateway-ws:gateway-ws123@127.0.0.1:5672/gateway-ws
-// account is 'gateway-ws', password is 'gateway-ws123', ip is '127.0.0.1', port is '5672', vHost is 'gateway-ws'
-func NewRabbitC(url string, afterConnected func(r *RabbitC, ch *amqp.Channel) error, consumeQueues []string) *RabbitC {
-	r := &RabbitC{
-		exit:               make(chan bool),
-		exited:             make(chan bool),
-		asyncPushChan:      make(chan Message, 1024),
-		url:                url,
-		consumeQueues:      consumeQueues,
-		afterConnected:     afterConnected,
-		newMessageCallBack: make([]func(amqp.Delivery), 0),
+// for example: amqp://dev:dev@127.0.0.1:5672/dev
+func InitRabbit(url string) error {
+	rabbitC = NewRabbitC(url)
+	return rabbitC.Start()
+}
+
+func GetRabbitInstance() *RabbitC {
+	return rabbitC
+}
+
+func NewRabbitC(url string) *RabbitC {
+	return &RabbitC{
+		url:           url,
+		asyncPushChan: make(chan Message, 1024),
+		exchangeKeys:  make([]string, 0),
+		queues:        make(map[string]string),
+		consumers:     make(map[string]Consumer),
+		exit:          make(chan bool),
+		exited:        make(chan bool),
 	}
-
-	return r
 }
 
-// SetAfterConnectedFunc is a callback func, will be called after connect rabbit success.
-// This is a great time to create exchange and queue
-func (r *RabbitC) SetAfterConnectedFunc(afterConnected func(r *RabbitC, ch *amqp.Channel) error) {
-	r.afterConnected = afterConnected
-}
-
-// SetConsumeQueues specify queues for consumption
-func (r *RabbitC) SetConsumeQueues(queues []string) {
-	r.consumeQueues = queues
-}
-
-// SetNewMessageCallBack specify callback func to handle new consume message from rabbit
-func (r *RabbitC) SetNewMessageCallBack(c func(amqp.Delivery)) {
-	r.newMessageCallBack = append(r.newMessageCallBack, c)
-}
-
-// Start start RabbitC
+// Start RabbitC
 func (r *RabbitC) Start() (err error) {
-	if err = r.initRabbit(); err != nil {
+	if r.conn, err = amqp.Dial(r.url); err != nil {
 		return
 	}
 
-	if r.afterConnected != nil {
-		if err = r.afterConnected(r, r.ch); err != nil {
-			return
-		}
-	}
-
-	if err = r.tryConsume(); err != nil {
+	if r.ch, err = r.conn.Channel(); err != nil {
+		_ = r.conn.Close()
 		return
 	}
 
@@ -82,10 +76,63 @@ func (r *RabbitC) Start() (err error) {
 	return
 }
 
+func (r *RabbitC) Restart() (err error) {
+	if r.conn, err = amqp.Dial(r.url); err != nil {
+		return
+	}
+
+	if r.ch, err = r.conn.Channel(); err != nil {
+		_ = r.conn.Close()
+		return
+	}
+
+	for _, exchange := range r.exchangeKeys {
+		err = r.ch.ExchangeDeclare(exchange, amqp.ExchangeDirect, true, false, false, false, nil)
+		if err != nil {
+			return
+		}
+	}
+
+	for queue, val := range r.queues {
+		s := strings.Split(val, ":::")
+		if err = r.QueueDeclare(queue, s[0], s[1]); err != nil {
+			return
+		}
+	}
+
+	for _, c := range r.consumers {
+		if err = r.Consume(c.name, c.queue, c.callback); err != nil {
+			return
+		}
+	}
+
+	return
+}
+
 // Close close RabbitC
 func (r *RabbitC) Close() {
 	close(r.exit)
 	r.Wait()
+}
+
+func (r *RabbitC) ExchangeDeclare(exchange string) error {
+	r.exchangeKeys = append(r.exchangeKeys, exchange)
+	return r.ch.ExchangeDeclare(exchange, amqp.ExchangeDirect, true, false, false, false, nil)
+}
+
+func (r *RabbitC) QueueDeclare(queueName, exchange, routerKey string) error {
+	if queue, err := r.ch.QueueDeclare(queueName, false, false, true, false, nil); err != nil {
+		return err
+	} else {
+		queueName = queue.Name
+		if err = r.ch.QueueBind(queue.Name, routerKey, exchange, false, nil); err != nil {
+			return err
+		}
+	}
+
+	r.queues[queueName] = exchange + ":::" + routerKey
+
+	return nil
 }
 
 type Message struct {
@@ -115,28 +162,24 @@ func (r *RabbitC) PushPersistentMessage(exchange, router string, body []byte) {
 	}
 }
 
-func (r *RabbitC) initRabbit() (err error) {
-	if r.conn, err = amqp.Dial(r.url); err != nil {
-		return
+func (r *RabbitC) Consume(consumer, queue string, c func(amqp.Delivery)) error {
+	if consumer == "" {
+		return errors.New("consumer can not be null")
+	}
+	dch, err := r.ch.Consume(queue, consumer, true, false, false, false, nil)
+	if err != nil {
+		return err
 	}
 
-	if r.ch, err = r.conn.Channel(); err != nil {
-		_ = r.conn.Close()
-		return
+	r.Lock()
+	r.consumers[consumer] = Consumer{
+		name:     consumer,
+		queue:    queue,
+		callback: c,
 	}
+	r.Unlock()
 
-	return
-}
-
-func (r *RabbitC) tryConsume() error {
-	for _, queue := range r.consumeQueues {
-		dch, err := r.ch.Consume(queue, "", true, false, false, false, nil)
-		if err != nil {
-			return err
-		}
-
-		go r.consumePump(dch)
-	}
+	go r.consumePump(dch)
 
 	return nil
 }
@@ -153,9 +196,14 @@ LOOP:
 				break LOOP
 			}
 
-			for _, f := range r.newMessageCallBack {
-				f(delivery)
+			r.RLock()
+			c, ok := r.consumers[delivery.ConsumerTag]
+			if !ok {
+				break
 			}
+			r.RUnlock()
+
+			c.callback(delivery)
 		}
 	}
 
@@ -198,14 +246,8 @@ func (r *RabbitC) watchRabbit() {
 			logger.Info("watchRabbit", nil, "[RabbitC] disconnect from server, try reconnect...")
 
 			var err error
-			if err = r.initRabbit(); err != nil {
-				logger.Error("watchRabbit", nil, "[RabbitC] reconnect fail, initRabbit error: "+err.Error())
-				break
-			}
-
-			if err = r.tryConsume(); err != nil {
-				logger.Error("watchRabbit", nil, "[RabbitC] reconnect fail, tryConsume error: "+err.Error())
-				_ = r.conn.Close()
+			if err = r.Restart(); err != nil {
+				logger.Error("watchRabbit", nil, "[RabbitC] restart fail, initRabbit error: "+err.Error())
 				break
 			}
 
