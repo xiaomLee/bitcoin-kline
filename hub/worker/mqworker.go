@@ -5,7 +5,10 @@ import (
 	"bitcoin-kline/config"
 	"bitcoin-kline/constant"
 	"bitcoin-kline/model"
+	"fmt"
 	"sync"
+
+	"github.com/streadway/amqp"
 
 	json "github.com/json-iterator/go"
 )
@@ -39,7 +42,14 @@ func InitMqWorker() {
 	appId = config.GetConfig("rabbit", "appId")
 	klineMqChan = make(chan model.Kline, DefaultMqChanSize)
 	common.GetRabbitInstance().ExchangeDeclare(exchange)
-	//common.GetRabbitInstance().QueueDeclare("kline", exchange, routerKey)
+
+	//test consumer
+	common.GetRabbitInstance().QueueDeclare("kline", exchange, routerKey)
+	common.GetRabbitInstance().Consume("test_callback", "kline", klineCallBack)
+}
+
+func klineCallBack(delivery amqp.Delivery) {
+	fmt.Printf("kline:%+v \n", string(delivery.Body))
 }
 
 func NewMqWorker() *MqWorker {

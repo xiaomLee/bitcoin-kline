@@ -95,7 +95,7 @@ func (r *RabbitC) Restart() (err error) {
 
 	for queue, val := range r.queues {
 		s := strings.Split(val, ":::")
-		if err = r.QueueDeclare(queue, s[0], s[1]); err != nil {
+		if _, err = r.QueueDeclare(queue, s[0], s[1]); err != nil {
 			return
 		}
 	}
@@ -120,19 +120,20 @@ func (r *RabbitC) ExchangeDeclare(exchange string) error {
 	return r.ch.ExchangeDeclare(exchange, amqp.ExchangeDirect, true, false, false, false, nil)
 }
 
-func (r *RabbitC) QueueDeclare(queueName, exchange, routerKey string) error {
+// when queueName is "", server will create an tmp queue with unique name
+func (r *RabbitC) QueueDeclare(queueName, exchange, routerKey string) (string, error) {
 	if queue, err := r.ch.QueueDeclare(queueName, false, false, true, false, nil); err != nil {
-		return err
+		return "", err
 	} else {
 		queueName = queue.Name
 		if err = r.ch.QueueBind(queue.Name, routerKey, exchange, false, nil); err != nil {
-			return err
+			return "", err
 		}
 	}
 
 	r.queues[queueName] = exchange + ":::" + routerKey
 
-	return nil
+	return queueName, nil
 }
 
 type Message struct {
