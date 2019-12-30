@@ -79,7 +79,7 @@ func (s *BaseServer) Init(env svc.Environment) error {
 
 func (s *BaseServer) Start() error {
 	s.server = &http.Server{
-		Addr:    ":8087",
+		Addr:    ":" + config.GetConfig("system", "http_listen_port"),
 		Handler: router.NewEngine(),
 	}
 	go func() {
@@ -95,7 +95,7 @@ func (s *BaseServer) Start() error {
 	if err := s.worker.Start(); err != nil {
 		panic(err)
 	}
-	println("hub service start")
+	println("booster service start")
 
 	return nil
 }
@@ -111,7 +111,7 @@ func (s *BaseServer) Stop() error {
 	if err := s.worker.Stop(); err != nil {
 		println(err.Error())
 	}
-	println("hub service stop")
+	println("booster service stop")
 
 	// release source
 	common.ReleaseMysqlDBPool()
