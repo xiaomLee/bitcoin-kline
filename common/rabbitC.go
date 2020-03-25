@@ -60,6 +60,10 @@ func NewRabbitC(url string) *RabbitC {
 	}
 }
 
+func CloseRabbit()  {
+	rabbitC.Close()
+}
+
 // Start RabbitC
 func (r *RabbitC) Start() (err error) {
 	if r.conn, err = amqp.Dial(r.url); err != nil {

@@ -116,6 +116,7 @@ func (s *BaseServer) Stop() error {
 	// release source
 	common.ReleaseMysqlDBPool()
 	common.ReleaseRedisPool()
+	common.CloseRabbit()
 	println("release source success")
 
 	return nil
