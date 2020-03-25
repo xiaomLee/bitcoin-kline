@@ -1,0 +1,33 @@
+version: "3"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    command: mysqld --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci #设置utf8字符集
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root #root管理员用户密码
+      MYSQL_USER: test   #创建test用户
+      MYSQL_PASSWORD: test  #设置test用户的密码
+    ports:
+      - "3306:3306" #host物理直接映射端口为6606
+      - "33060:33060"
+
+  redis:
+    image: redis:3.2
+    container_name: redis3.2
+    restart: always
+    ports:
+      - "6379:6379" #host物理直接映射端口为6379
+
+  rabbitmq:
+    image: rabbitmq:management
+    container_name: rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: admin #管理员用户名密码
+      RABBITMQ_DEFAULT_PASS: admin
+    ports:
+      - "15672:15672"
+      - "5672:5672"

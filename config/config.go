@@ -42,7 +42,9 @@ var (
 func InitConfig() {
 	mode := os.Getenv(ModeEnv)
 	if mode == "" {
-		panic("env " + ModeEnv + " not set")
+		// TODO online should set RUNMODE Env
+		//panic("env " + ModeEnv + " not set")
+		mode = "dev"
 	}
 	if mode != ENV_DEV && mode != ENV_TEST && mode != ENV_ONLINE && mode != ENV_PRE {
 		panic("env " + ModeEnv + " should be: dev, test, online, and pre")

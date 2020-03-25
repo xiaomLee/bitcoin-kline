@@ -52,15 +52,15 @@ func (s *BaseServer) Init(env svc.Environment) error {
 	println("mysql init success")
 
 	// init redis
-	if err := common.AddRedisInstance(
-		"",
-		config.GetConfig("redis", "addr"),
-		config.GetConfig("redis", "port"),
-		config.GetConfig("redis", "password"),
-		config.GetConfigInt("redis", "db_num")); err != nil {
-		return err
-	}
-	println("redis init success")
+	//if err := common.AddRedisInstance(
+	//	"",
+	//	config.GetConfig("redis", "addr"),
+	//	config.GetConfig("redis", "port"),
+	//	config.GetConfig("redis", "password"),
+	//	config.GetConfigInt("redis", "db_num")); err != nil {
+	//	return err
+	//}
+	//println("redis init success")
 
 	rabbitUrl := fmt.Sprintf("amqp://%s:%s@%s:%s%s",
 		config.GetConfig("rabbit", "account"),

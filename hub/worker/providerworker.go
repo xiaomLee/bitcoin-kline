@@ -48,7 +48,7 @@ func InitProviderWorker() {
 	providers = make([]string, 0)
 	if config.CURMODE == config.ENV_DEV {
 		providers = append(providers, constant.ProviderMock)
-		providers = append(providers, constant.ProviderSina)
+		//providers = append(providers, constant.ProviderSina)
 	} else {
 		//providers = append(providers, constant.ProviderMock)
 		providers = append(providers, constant.ProviderZB)
@@ -105,10 +105,10 @@ func (w *ProviderWorker) Start() error {
 	// 聚合修正多家供应商的数据
 	for _, coinType := range config.SupportCoinTypes {
 		w.Add(1)
-		go func() {
+		go func(c string) {
 			defer w.Done()
-			w.fixDataLoop(coinType)
-		}()
+			w.fixDataLoop(c)
+		}(coinType)
 	}
 
 	return nil

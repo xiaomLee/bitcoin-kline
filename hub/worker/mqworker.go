@@ -20,12 +20,9 @@ type MqWorker struct {
 }
 
 type Message struct {
-	AppId     string   `json:"appId"`
-	OrgId     string   `json:"orgId"`
-	EventType string   `json:"eventType"` // 订阅的事件
-	UidList   []string `json:"uidList"`   // 指定推送的用户，为空则表示所有订阅该事件的用户
-	MsgType   int      `json:"msgType"`   // 0:普通消息 1:安全消息，发送前需要验证用户身份证
-	Body      string   `json:"body"`
+	AppId     string `json:"appId"`
+	EventType string `json:"eventType"` // 订阅的事件
+	Body      string `json:"body"`
 }
 
 const DefaultMqChanSize = 1024
@@ -49,7 +46,7 @@ func InitMqWorker() {
 }
 
 func klineCallBack(delivery amqp.Delivery) {
-	fmt.Printf("kline:%+v \n", string(delivery.Body))
+	fmt.Printf("testMqSubcriptEvent:%+v \n", string(delivery.Body))
 }
 
 func NewMqWorker() *MqWorker {

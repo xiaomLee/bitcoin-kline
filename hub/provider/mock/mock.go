@@ -49,10 +49,10 @@ func (p *Provider) ReadChan(coinType string) <-chan *model.Kline {
 func (p *Provider) StartCollect() {
 	for _, coinType := range config.SupportCoinTypes {
 		p.Add(1)
-		go func() {
+		go func(c string) {
 			defer p.Done()
-			p.loop(coinType)
-		}()
+			p.loop(c)
+		}(coinType)
 	}
 }
 

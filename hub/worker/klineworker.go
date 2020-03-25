@@ -27,10 +27,10 @@ func NewKlineWorker() *KlineWorker {
 func (w *KlineWorker) Start() error {
 	for _, coinType := range config.SupportCoinTypes {
 		w.Add(1)
-		go func() {
+		go func(c string) {
 			defer w.Done()
-			w.workLoop(coinType)
-		}()
+			w.workLoop(c)
+		}(coinType)
 	}
 
 	return nil

@@ -74,10 +74,10 @@ func (p *Provider) StartCollect() {
 	for _, coinType := range config.SupportCoinTypes {
 		if _, ok := okCoinMap[coinType]; ok {
 			p.Add(1)
-			go func() {
+			go func(c string) {
 				defer p.Done()
-				p.loop(coinType)
-			}()
+				p.loop(c)
+			}(coinType)
 		}
 	}
 }

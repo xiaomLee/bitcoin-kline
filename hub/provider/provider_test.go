@@ -19,7 +19,7 @@ import (
 )
 
 func TestProvider(t *testing.T) {
-	coinType1 := "RU/CNY"
+	coinType1 := "ETH/USDT"
 	//coinType2 := "RU/USDT"
 	p := newProvider("mock")
 	p.StartCollect()
